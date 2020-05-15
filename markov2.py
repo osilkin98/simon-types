@@ -1,43 +1,55 @@
-from random import random, randint
+import time
 
-import numpy as np
-
-# Trump's speeches here: https://github.com/ryanmcdermott/trump-speeches
-trump = open('nathan_for_you.txt', encoding='utf8').read()
-
-corpus = trump.split()
+import markovify
 
 
-def make_pairs(corpus):
-    for i in range(len(corpus) - 1):
-        yield corpus[i], corpus[i + 1]
+def get_text_model(filename: str, **kwargs) -> markovify.Text:
+    with open(filename) as f:
+        return markovify.Text(f, **kwargs)
 
 
-pairs = make_pairs(corpus)
+def get_joint_model(filenames: list, weights: list = None, **kwargs) -> markovify.Text:
+    models = [get_text_model(fn, **kwargs) for fn in filenames]
+    model_combo = markovify.combine(models, weights)
+    model_combo.compile()
+    return model_combo
 
-word_dict = {}
 
-for word_1, word_2 in pairs:
-    if word_1 in word_dict.keys():
-        word_dict[word_1].append(word_2)
-    else:
-        word_dict[word_1] = [word_2]
+def get_sentences(model: markovify.Text, n=50, **kwargs):
+    return [s for _ in range(n)if (s := model.make_sentence(**kwargs)) is not None]
+
+
+def generate_sentances(model: markovify.Text, time_int: 0.5, **kwargs):
+    while True:
+        sent = model.make_sentence(**kwargs)
+        while sent is None:
+            sent = model.make_sentence(**kwargs)
+        print(sent, end='\n' + '\n')
+        time.sleep(time_int - 0.05)
 
 
 if __name__ == '__main__':
-    for k in range(50):
+    files = [
+        "kitchen_nightmares.txt",
+        "keil.txt",
+        "joe chang.txt",
+        "nathan_for_you.txt",
+        "sopranos.txt",
+        "family guy.txt",
+        "superbad.txt",
+        "arrested_development.txt"
 
-        first_word = 'Hot'
-        first_phrase = ['Hot', 'Pockets']
-        chain = first_phrase + [np.random.choice(corpus) for k in range(randint(0, 2))]
-        title = ' '.join(chain)
+    ]
+    weights = [
+        0.3,  # kitchen
+        2, # keil
+        0.2,     # joe
+        1.2,     # nat
+        0.1,  # sop
+        1.1,   # family
+        0.26,  # superbad
+        1.5  # AD
+    ]
+    model = get_joint_model(files, weights, state_size=2, retain_original=False, well_formed=False)
 
-        n_words = randint(25, 100)
-
-        for i in range(n_words):
-            chain.append(np.random.choice(word_dict[chain[-1]]))
-
-        rabble = ' '.join(chain)
-        print(f'The {title}:', end='\n\n')
-        print(' '.join(chain).replace('.', '.\n'), end='\n\n')
-        print('-'*250)
+    generate_sentances(model, time_int=2, max_words=50, max_overlap_ratio=0.7)
